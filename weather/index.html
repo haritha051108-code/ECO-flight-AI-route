@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoFlight AI — Flight Routes with Lower Contrail Risk</title>
+  <meta name="description" content="Find flight routes with lower persistent contrail risk using real atmospheric weather data at cruising altitude worldwide.">
+  
+  <!-- Modern Typography (Google Fonts Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet Map CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  
+  <!-- Application CSS -->
+  <link rel="stylesheet" href="css/style.css">
+  
+  <!-- Favicon SVG -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✈️</text></svg>">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-icon-box" aria-hidden="true">✈️</div>
+      <div class="brand-text">
+        <h1>EcoFlight <span class="ai-badge">AI</span></h1>
+        <p class="brand-tagline">Persistent Contrail Avoidance & Climate-Smart Flight Routing</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button id="open-api-btn" class="action-pill-btn api-key-badge" title="Configure Weather Telemetry API Key" aria-label="Configure API Key">
+        <span id="api-key-status-icon">⚠️</span> <span id="api-key-btn-text">API Key Required</span>
+      </button>
+      <button id="toggle-theme-btn" class="action-pill-btn" title="Toggle between Dark Blue and Light theme" aria-label="Toggle theme">
+        🌙 Dark Blue
+      </button>
+      <button id="toggle-units-btn" class="action-pill-btn" title="Toggle between Metric and Nautical units" aria-label="Toggle units">
+        🌐 Metric (km, °C)
+      </button>
+      <button id="open-info-btn" class="action-pill-btn" title="Learn how contrails impact climate" aria-label="Learn about contrails">
+        ℹ️ About Contrails
+      </button>
+    </div>
+  </header>
+
+  <!-- Top Search & Flight Controls -->
+  <section class="search-section-container" aria-label="Flight Search">
+    <div class="search-card">
+      <div class="search-bar-grid">
+        <!-- Origin Input -->
+        <div class="input-group">
+          <label class="input-label" for="origin-input">
+            🛫 Departure City or Airport
+          </label>
+          <div class="input-box">
+            <span class="input-icon" aria-hidden="true">📍</span>
+            <input 
+              type="text" 
+              id="origin-input" 
+              placeholder="Enter origin city or airport code (e.g. JFK, London, Tokyo)" 
+              autocomplete="off"
+              aria-label="Departure location"
+            >
+          </div>
+          <div id="origin-dropdown" class="search-dropdown" role="listbox"></div>
+        </div>
+
+        <!-- Swap Button -->
+        <button id="swap-locations-btn" class="swap-btn" title="Swap departure and destination" aria-label="Swap locations">
+          ⇄
+        </button>
+
+        <!-- Destination Input -->
+        <div class="input-group">
+          <label class="input-label" for="dest-input">
+            🛬 Destination City or Airport
+          </label>
+          <div class="input-box">
+            <span class="input-icon" aria-hidden="true">🎯</span>
+            <input 
+              type="text" 
+              id="dest-input" 
+              placeholder="Enter destination worldwide (e.g. LHR, Paris, Singapore)" 
+              autocomplete="off"
+              aria-label="Destination location"
+            >
+          </div>
+          <div id="dest-dropdown" class="search-dropdown" role="listbox"></div>
+        </div>
+
+        <!-- Search Submit Button -->
+        <button id="search-routes-btn" class="search-btn" aria-label="Find flight routes">
+          <span>Find Routes</span> ➔
+        </button>
+      </div>
+
+      <!-- Quick Preset Corridors -->
+      <div class="presets-bar" aria-label="Popular flight corridors">
+        <span class="presets-label">Popular Corridors:</span>
+        <button class="preset-chip active" data-origin="JFK" data-dest="LHR">JFK ➔ LHR (New York to London)</button>
+        <button class="preset-chip" data-origin="SFO" data-dest="HND">SFO ➔ HND (San Francisco to Tokyo)</button>
+        <button class="preset-chip" data-origin="DXB" data-dest="CDG">DXB ➔ CDG (Dubai to Paris)</button>
+        <button class="preset-chip" data-origin="SIN" data-dest="SYD">SIN ➔ SYD (Singapore to Sydney)</button>
+        <button class="preset-chip" data-origin="LAX" data-dest="FRA">LAX ➔ FRA (Los Angeles to Frankfurt)</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Large Interactive Map -->
+  <main class="map-section" aria-label="Interactive Flight Map">
+    <div class="map-wrapper">
+      <div id="map-container" role="region" aria-label="Flight route map"></div>
+
+      <!-- Map Basemap Layer Switcher (Dark Aero / Google Maps) -->
+      <div class="map-basemap-bar" aria-label="Map Basemap Switcher">
+        <span class="basemap-bar-label">Basemap:</span>
+        <button class="basemap-btn active" data-basemap="dark-blue" title="Dark Aero Navigation Mode">🌙 Dark Aero</button>
+        <button class="basemap-btn" data-basemap="google-hybrid" title="Google Maps Satellite with Labels">🌍 Google Hybrid</button>
+        <button class="basemap-btn" data-basemap="google-satellite" title="Google Maps High-Res Satellite Imagery">🛰️ Google Satellite</button>
+        <button class="basemap-btn" data-basemap="google-streets" title="Google Maps Standard Streets">🛣️ Google Roads</button>
+      </div>
+
+      <!-- Map Floating Contrail Risk Legend -->
+      <div class="map-legend-overlay" aria-label="Contrail risk legend">
+        <div class="legend-title">☁️ Contrail Risk Legend</div>
+        <div class="legend-items">
+          <div class="legend-row">
+            <span class="legend-dot" style="background: var(--risk-low);"></span>
+            <span><strong>Green:</strong> Lower Risk (&lt;35%)</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-dot" style="background: var(--risk-med);"></span>
+            <span><strong>Yellow:</strong> Medium Risk (35–65%)</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-dot" style="background: var(--risk-high);"></span>
+            <span><strong>Red:</strong> High Persistent Risk (&gt;65% ISSR)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real Telemetry Attribution Pill -->
+      <div class="map-source-overlay" aria-label="Data source indicator">
+        <span class="live-pulse" aria-hidden="true"></span>
+        <span>Live Altitude Weather: <strong>Open-Meteo Global Upper-Air Telemetry</strong></span>
+      </div>
+
+      <!-- Loading Overlay -->
+      <div id="loading-indicator" class="loading-indicator" aria-live="polite">
+        <div class="spinner"></div>
+        <div id="loading-status-text" class="loading-status-text">Fetching real atmospheric telemetry...</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Route Details & Comparisons (Below Map) -->
+  <section class="details-section" aria-label="Route Comparisons and Waypoints">
+    <!-- Recommendation Banner -->
+    <div id="recommendation-banner" class="recommendation-banner" style="display: none;">
+      <div class="recommendation-content">
+        <div class="rec-star-icon" aria-hidden="true">★</div>
+        <div>
+          <div id="recommendation-text" class="rec-text-block">Analyzing optimal route...</div>
+          <div id="recommendation-tradeoff" class="rec-tradeoff">Calculating trade-offs...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2-3 Route Comparison Cards -->
+    <div class="section-headline">
+      <span>Compare Alternative Flight Routes</span>
+      <span style="font-size:0.8rem; font-weight:500; color:var(--text-muted);">Click any route card or line on the map to switch</span>
+    </div>
+    <div id="route-cards-container" class="route-cards-grid"></div>
+
+    <!-- Real Weather Along Route Waypoints -->
+    <div id="waypoint-weather-container" class="waypoint-weather-section">
+      <div class="waypoint-section-header">
+        <div class="waypoint-section-title">
+          <span>🌤️ Cruising Altitude Weather Telemetry Along Selected Route</span>
+        </div>
+        <div class="waypoint-telemetry-tag">
+          Sampled at 250 hPa (~FL340) & 300 hPa (~FL300)
+        </div>
+      </div>
+      <div id="waypoint-cards-list" class="waypoint-cards-list"></div>
+    </div>
+  </section>
+
+  <!-- Bottom Information Bar (Fixed / Sticky Footer) -->
+  <aside class="bottom-info-bar" aria-label="Selected Route Summary">
+    <div class="bottom-bar-inner">
+      <div class="bottom-stats-row">
+        <!-- Estimated Flight Time -->
+        <div class="bottom-stat">
+          <span class="stat-label">⏱️ Estimated Flight Time</span>
+          <span id="stat-flight-time" class="stat-value">--</span>
+        </div>
+
+        <!-- Estimated Fuel Consumption -->
+        <div class="bottom-stat">
+          <span class="stat-label">⛽ Est. Fuel Consumption</span>
+          <span id="stat-fuel" class="stat-value">--</span>
+        </div>
+
+        <!-- Total Distance -->
+        <div class="bottom-stat">
+          <span class="stat-label">📏 Total Distance</span>
+          <span id="stat-distance" class="stat-value">--</span>
+        </div>
+      </div>
+
+      <!-- Persistent Contrail Risk -->
+      <div class="bottom-contrail-stat">
+        <div class="contrail-score-header">
+          <span class="stat-label">☁️ Persistent Contrail Risk</span>
+          <span id="stat-contrail-badge" class="contrail-badge-pill">Analyzing...</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <div class="contrail-progress-track">
+            <div id="stat-contrail-bar" class="contrail-progress-fill" style="width: 20%; background-color: var(--risk-low);"></div>
+          </div>
+          <span id="stat-contrail-risk" style="font-size:1.1rem; font-weight:800; min-width:44px; text-align:right;">--%</span>
+        </div>
+      </div>
+
+      <!-- Quick G-Map Action in Bottom Bar -->
+      <div class="bottom-gmap-container">
+        <a id="bottom-gmap-link" href="#" target="_blank" rel="noopener noreferrer" class="bottom-gmap-pill-btn" title="Open active route in Google Maps Directions">
+          <span class="gmap-badge-icon">🗺️</span>
+          <span>Open in Google Maps ↗</span>
+        </a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Educational Info Modal -->
+  <div id="info-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h3 id="modal-title">About Persistent Contrails & Climate Impact</h3>
+        <button id="close-info-btn" class="modal-close-btn" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          <strong>What are persistent contrails?</strong> When aircraft fly through very cold and humid regions of the upper atmosphere, water vapor and soot from engines condense into ice crystals.
+        </p>
+        <p>
+          In <strong>Ice-Supersaturated Regions (ISSR)</strong>, these contrails do not evaporate. Instead, they expand into man-made cirrus cloud sheets that trap heat emitted by the Earth, contributing significantly to aviation's net climate warming.
+        </p>
+        <div class="modal-highlight-box">
+          <strong>How EcoFlight AI works:</strong><br>
+          We query live atmospheric telemetry (temperature and relative humidity at cruising altitudes between 250–300 hPa) from global meteorological models. Using the <em>Schmidt-Appleman Criterion</em>, we identify ice-supersaturated risk zones and calculate small tactical route or altitude adjustments that eliminate persistent contrail formation with minimal fuel and time trade-offs.
+        </div>
+        <p>
+          <strong>Risk Color Coding:</strong>
+          <br>● <strong style="color:var(--risk-low);">Green (Low):</strong> Dry or warm air where contrails evaporate immediately.
+          <br>● <strong style="color:var(--risk-med);">Yellow (Medium):</strong> Marginal ice-saturation with transient contrails.
+          <br>● <strong style="color:var(--risk-high);">Red (High):</strong> Cold ISSR zone where persistent warming cirrus will form.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Key Required Modal -->
+  <div id="api-key-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="api-modal-title">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h3 id="api-modal-title">🔑 Weather API Key Required</h3>
+        <button id="close-api-btn" class="modal-close-btn" aria-label="Close API dialog">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          An API key is required to authenticate with global upper-air atmospheric telemetry servers (Open-Meteo Aviation & Pressure-Level API) to compute persistent contrail risks.
+        </p>
+
+        <div class="api-key-input-container">
+          <label for="api-key-input" class="input-label" style="margin-top:0.5rem;">Enter Your Weather Telemetry API Key:</label>
+          <div class="input-box" style="margin-bottom:0.75rem; position:relative;">
+            <span class="input-icon" aria-hidden="true">🔐</span>
+            <input 
+              type="password" 
+              id="api-key-input" 
+              placeholder="e.g. om_live_xxxxxxxx or your custom key"
+              autocomplete="off"
+            >
+            <button id="toggle-key-visibility-btn" type="button" class="visibility-toggle-btn" title="Show or hide API key" aria-label="Toggle visibility">👁️</button>
+          </div>
+        </div>
+
+        <div id="api-key-validation-msg" class="api-status-msg" style="display:none;"></div>
+
+        <div class="modal-action-row" style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:1rem;">
+          <button id="save-api-key-btn" class="search-btn" style="margin-top:0; padding:0.65rem 1.25rem;">
+            ✓ Save & Authenticate
+          </button>
+          <button id="demo-api-key-btn" class="action-pill-btn" style="padding:0.65rem 1rem;">
+            ⚡ Use Free Demo Key
+          </button>
+          <button id="clear-api-key-btn" class="action-pill-btn" style="padding:0.65rem 1rem; color:#ef4444;">
+            🗑️ Clear
+          </button>
+        </div>
+
+        <div class="modal-highlight-box" style="margin-top:1.25rem;">
+          <strong>Need an API Key?</strong><br>
+          • <strong>Commercial / Enterprise:</strong> Use your commercial Open-Meteo or aviation telemetry token.<br>
+          • <strong>Instant Testing:</strong> Click <em>"Use Free Demo Key"</em> to generate an immediate evaluation session without registration.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Google Maps Interactive Explorer Modal -->
+  <div id="gmap-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="gmap-modal-title">
+    <div class="modal-window gmap-modal-window">
+      <div class="modal-header">
+        <div class="gmap-modal-title-group">
+          <div class="gmap-modal-icon-badge">🗺️</div>
+          <div>
+            <h3 id="gmap-modal-title">Google Maps Flight Corridor Explorer</h3>
+            <p id="gmap-modal-subtitle" class="gmap-modal-subtitle">Direct corridor inspection with Google Satellite & Terrains</p>
+          </div>
+        </div>
+        <button id="close-gmap-btn" class="modal-close-btn" aria-label="Close Google Maps Explorer">✕</button>
+      </div>
+
+      <div class="modal-body gmap-modal-body">
+        <!-- Control Bar: Layer Switchers & External Link -->
+        <div class="gmap-control-bar">
+          <div class="gmap-layer-tabs" role="tablist">
+            <button class="gmap-tab active" data-layer="k" title="Google Satellite Imagery">🛰️ Satellite</button>
+            <button class="gmap-tab" data-layer="h" title="Google Hybrid (Satellite + Labels)">🌍 Hybrid</button>
+            <button class="gmap-tab" data-layer="p" title="Google Terrain Topography">⛰️ Terrain</button>
+            <button class="gmap-tab" data-layer="m" title="Standard Google Roadmap">🛣️ Roadmap</button>
+          </div>
+          <div class="gmap-external-actions">
+            <button id="gmap-apply-main-btn" class="gmap-action-pill" title="Apply Google Hybrid basemap to main map screen">
+              🌍 Use on Main Map
+            </button>
+            <a id="gmap-modal-open-link" href="#" target="_blank" rel="noopener noreferrer" class="gmap-action-pill gmap-primary-pill" title="Open full flight directions in Google Maps tab">
+              🗺️ Open in Google Maps ↗
+            </a>
+          </div>
+        </div>
+
+        <!-- Google Maps Embed Container -->
+        <div class="gmap-embed-container">
+          <iframe 
+            id="gmap-iframe" 
+            title="Google Maps Flight View" 
+            src="about:blank" 
+            loading="lazy" 
+            allowfullscreen 
+            referrerpolicy="no-referrer-when-downgrade"
+          ></iframe>
+        </div>
+
+        <!-- Route Corridor GPS Telemetry & Waypoints -->
+        <div class="gmap-corridor-summary">
+          <div class="gmap-summary-header">
+            <span class="gmap-summary-title">🛫 Flight Corridor Waypoints</span>
+            <span id="gmap-route-altitude-badge" class="route-alt-tag">FL340</span>
+          </div>
+          <div id="gmap-waypoints-strip" class="gmap-waypoints-strip"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <!-- App JS Module -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

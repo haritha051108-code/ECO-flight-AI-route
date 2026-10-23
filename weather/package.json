@@ -1,0 +1,10 @@
+{
+  "name": "ecoflight-ai",
+  "version": "1.0.0",
+  "description": "EcoFlight AI - Persistent Contrail Avoidance Flight Route Planner",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
